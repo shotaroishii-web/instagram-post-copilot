@@ -2,9 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 html {
   -webkit-font-smoothing: antialiased;
@@ -12,35 +10,53 @@ html {
 }
 
 body {
-  margin: 0;
-  padding: 0;
-  background-color: white;
+  background-color: #F1F2F4;
   color: #111;
 }
 
-input::placeholder {
-  color: #D1D5DB;
-}
+input::placeholder { color: #D1D5DB; }
 
-/* ── 魔王モード：画面微震え ── */
+/* ── 魔王モード震え ─────────────────────────────── */
 @keyframes micro-shake {
-  0%   { transform: translate(0, 0); }
-  20%  { transform: translate(-1.5px, 0.5px) rotate(-0.1deg); }
-  40%  { transform: translate(1.5px, -0.5px) rotate(0.1deg); }
-  60%  { transform: translate(-1px, 1px) rotate(-0.1deg); }
-  80%  { transform: translate(1px, -1px) rotate(0.1deg); }
-  100% { transform: translate(0, 0); }
+  0%,100% { transform: translate(0,0); }
+  25%      { transform: translate(-1.5px, 0.5px) rotate(-0.08deg); }
+  50%      { transform: translate(1.5px, -0.5px) rotate(0.08deg); }
+  75%      { transform: translate(-0.5px, 1px) rotate(-0.08deg); }
+}
+.shake-screen { animation: micro-shake 0.3s ease-in-out infinite; }
+
+/* ── タスク行 削除ボタン ─────────────────────────── */
+.task-row:hover .delete-btn { opacity: 1 !important; }
+.task-row:hover .delete-btn:hover { color: #6B7280 !important; }
+
+/* ── レスポンシブ ─────────────────────────────────── */
+@media (max-width: 1100px) {
+  .dash-grid {
+    grid-template-columns: 220px 1fr 220px !important;
+  }
 }
 
-.shake-screen {
-  animation: micro-shake 0.35s ease-in-out infinite;
+@media (max-width: 860px) {
+  .dash-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .dash-right {
+    grid-column: 1 / -1;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
 }
 
-/* ── タスク行：削除ボタンをhoverで表示 ── */
-.task-row:hover .delete-btn {
-  opacity: 1 !important;
-}
-
-.task-row:hover .delete-btn:hover {
-  color: #6B7280 !important;
+@media (max-width: 580px) {
+  .dash-grid {
+    grid-template-columns: 1fr !important;
+    padding: 12px !important;
+  }
+  .dash-left,
+  .dash-right {
+    grid-column: unset !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
 }
