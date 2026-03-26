@@ -14,6 +14,7 @@ interface DailyRec  { id: string; date: string; cond: ChildLv; attend: Attendanc
 interface ChildInfo { birthdate: string; name: string }
 interface Stats     { demonCount: number; completedQuests: number }
 interface TodayStatus { date: string; morningDone: boolean; eveningDone: boolean; eveningMessage: string }
+interface ToastItem  { id: string; text: string; x: number; y: number }
 
 // ══ Time helpers ══════════════════════════════════════════════════════
 const getAutoTZ = (): TZ => {
@@ -65,7 +66,7 @@ function triggerConfetti() {
   canvas.height = window.innerHeight
   const ctx = canvas.getContext('2d')!
   const colors = ['#3B82F6','#F59E0B','#8B5CF6','#EC4899','#10B981','#EF4444','#FBBF24']
-  const pieces = Array.from({ length: 160 }, () => ({
+  const pieces = Array.from({ length: 180 }, () => ({
     x: Math.random() * canvas.width,
     y: Math.random() * canvas.height - canvas.height,
     vy: 2.5 + Math.random() * 3.5,
@@ -151,6 +152,8 @@ const ATTENDS = [
   { id:'absent' as Attendance, label:'欠勤', color:'#B91C1C', bg:'#FEE2E2', border:'#EF4444' },
 ]
 
+const TOAST_MSGS = ['ナイス！', 'えらい！', '神対応！', 'さすが！', 'よっしゃ！', '完璧！', '天才！']
+
 const STOP = new Set(['これ','この','その','あの','だ','です','ます','した','する','いる','いた','ある','なる','から','まで','こと','ため','もの','など','について','による','という','として','での','への'])
 
 // ══ Helpers ════════════════════════════════════════════════════════════
@@ -187,7 +190,12 @@ export default function Home() {
   const [clock, setClock]     = useState('')
   const [dateStr, setDateStr] = useState('')
   const [ready, setReady]     = useState(false)
-  const prevCond              = useRef<ChildLv>('ANGEL')
+  const [infoEditing, setInfoEditing] = useState(false)
+  const [toasts, setToasts]   = useState<ToastItem[]>([])
+  // Temp state for info editing inside the card
+  const [editName, setEditName]   = useState('')
+  const [editBirth, setEditBirth] = useState('')
+  const prevCond = useRef<ChildLv>('ANGEL')
 
   // Clock + auto-mode
   useEffect(() => {
@@ -221,7 +229,6 @@ export default function Home() {
       if (i) setInfo(JSON.parse(i))
       if (ts) {
         const parsed: TodayStatus = JSON.parse(ts)
-        // Reset if it's a new day
         if (parsed.date === today()) setTodayStatus(parsed)
         else setTodayStatus({ date: today(), morningDone:false, eveningDone:false, eveningMessage:'' })
       } else {
@@ -292,11 +299,26 @@ export default function Home() {
     return { yr, mo, fd, dim, map }
   })()
 
-  // Handlers
-  const toggle   = (id: string) => setTasks(p => ({ ...p!, [tz]: p![tz].map(t => t.id===id ? { ...t, checked:!t.checked } : t) }))
+  // ── Toast helper ──────────────────────────────────────────────────
+  const showToast = () => {
+    const id   = uid()
+    const text = TOAST_MSGS[Math.floor(Math.random() * TOAST_MSGS.length)]
+    const x    = 12 + Math.random() * 72   // % from left
+    const y    = 15 + Math.random() * 60   // % from top
+    setToasts(p => [...p, { id, text, x, y }])
+    setTimeout(() => setToasts(p => p.filter(t => t.id !== id)), 1400)
+  }
+
+  // ── Handlers ──────────────────────────────────────────────────────
+  const toggle = (id: string) => {
+    const task = (tasks[tz] ?? []).find(t => t.id === id)
+    if (task && !task.checked) showToast()   // only on check, not uncheck
+    setTasks(p => ({ ...p!, [tz]: p![tz].map(t => t.id===id ? { ...t, checked:!t.checked } : t) }))
+  }
   const delTask  = (id: string) => setTasks(p => ({ ...p!, [tz]: p![tz].filter(t => t.id!==id) }))
   const addTask  = () => { const v = newTask.trim(); if (!v) return; setTasks(p => ({ ...p!, [tz]: [...p![tz], { id:uid(), text:v, checked:false }] })); setNewTask('') }
   const resetQ   = () => { setTasks(p => ({ ...p!, [tz]: defTasks(tz) })); setTodayStatus(p => ({ ...p, morningDone:false })) }
+
   const completeQuest = () => {
     triggerConfetti()
     setStats(s => ({ ...s, completedQuests: s.completedQuests+1 }))
@@ -312,6 +334,18 @@ export default function Home() {
   const addRL    = (item: NewsItem) => setRl(p => p.some(r => r.link===item.link) ? p : [...p, { id:uid(), title:item.title, link:item.link }])
   const delRL    = (id: string) => setRl(p => p.filter(r => r.id!==id))
   const switchTZ = (t: TZ) => { setTz(t); setIsAuto(false) }
+
+  // Info editing helpers
+  const startInfoEdit = () => {
+    setEditName(info.name)
+    setEditBirth(info.birthdate)
+    setInfoEditing(true)
+  }
+  const saveInfoEdit = () => {
+    setInfo({ name: editName.trim(), birthdate: editBirth })
+    setInfoEditing(false)
+  }
+  const showInfoForm = !info.birthdate || infoEditing
 
   // ──────────────────────────────────────────────────────────────────
   return (
@@ -330,7 +364,7 @@ export default function Home() {
           </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-          <span style={{ fontSize:11, color:'#6B7280' }}>{dateStr} ☀️ 東京 杉並区</span>
+          <span style={{ fontSize:11, color:'#6B7280' }}>{dateStr}</span>
           <span style={{ fontSize:11, color:'#9CA3AF' }}>{clock}</span>
           <span style={{ fontSize:11, fontWeight:600, color:cur.accent, backgroundColor:cur.accentBg, padding:'3px 9px', borderRadius:20, display:'flex', alignItems:'center', gap:4 }}>
             {isAuto && <span style={{ fontSize:8, letterSpacing:'0.05em' }}>AUTO</span>}
@@ -346,25 +380,54 @@ export default function Home() {
         {/* ══ LEFT ══════════════════════════════════════════ */}
         <div className="dash-left" style={{ display:'flex', flexDirection:'column', gap:12 }}>
 
-          {/* Mode */}
+          {/* Mode buttons — green + big ✅ when done */}
           <div style={card()}>
             <p style={sec()}>Mode</p>
             {isAuto && <div style={{ marginBottom:10, padding:'5px 9px', borderRadius:7, backgroundColor:'#F0FDF4', fontSize:10, color:'#16A34A', fontWeight:600 }}>⚡ 現在時刻から自動設定中</div>}
             <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
               {MODES.map(m => {
-                const a = tz === m.id
-                const isDone = m.id === 'MORNING' ? todayStatus.morningDone : todayStatus.eveningDone
+                const isActive = tz === m.id
+                const isDone   = m.id === 'MORNING' ? todayStatus.morningDone : todayStatus.eveningDone
                 return (
-                  <button key={m.id} onClick={() => switchTZ(m.id)} style={{ textAlign:'left', padding:'11px 14px', borderRadius:9, border:`1.5px solid ${a ? m.accent : 'transparent'}`, backgroundColor: a ? m.accentBg : '#F9FAFB', color: a ? m.accent : '#6B7280', cursor:'pointer', display:'flex', alignItems:'center', gap:10, transition:'all 0.15s', position:'relative' }}>
-                    <span style={{ fontSize:18 }}>{m.emoji}</span>
-                    <div style={{ flex:1 }}>
-                      <span style={{ fontSize:13, fontWeight: a ? 700 : 500, display:'block' }}>{m.label}</span>
-                      <span style={{ fontSize:10, opacity:0.6 }}>{m.sub}</span>
-                    </div>
-                    {isDone && (
-                      <div style={{ width:22, height:22, borderRadius:'50%', backgroundColor:'#10B981', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                      </div>
+                  <button
+                    key={m.id}
+                    onClick={() => switchTZ(m.id)}
+                    style={{
+                      textAlign:'left',
+                      padding: isDone ? '14px' : '11px 14px',
+                      borderRadius:9,
+                      border: isDone
+                        ? '2px solid #10B981'
+                        : `1.5px solid ${isActive ? m.accent : 'transparent'}`,
+                      backgroundColor: isDone
+                        ? '#ECFDF5'
+                        : (isActive ? m.accentBg : '#F9FAFB'),
+                      color: isDone ? '#065F46' : (isActive ? m.accent : '#6B7280'),
+                      cursor:'pointer',
+                      display:'flex',
+                      alignItems:'center',
+                      gap:10,
+                      transition:'all 0.2s',
+                      position:'relative',
+                      width:'100%',
+                    }}
+                  >
+                    {isDone ? (
+                      <>
+                        <span style={{ fontSize:28, lineHeight:1 }}>✅</span>
+                        <div style={{ flex:1 }}>
+                          <span style={{ fontSize:13, fontWeight:700, display:'block', color:'#065F46' }}>{m.label}</span>
+                          <span style={{ fontSize:10, color:'#10B981', fontWeight:600 }}>完了！お疲れ様です</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <span style={{ fontSize:18 }}>{m.emoji}</span>
+                        <div style={{ flex:1 }}>
+                          <span style={{ fontSize:13, fontWeight: isActive ? 700 : 500, display:'block' }}>{m.label}</span>
+                          <span style={{ fontSize:10, opacity:0.6 }}>{m.sub}</span>
+                        </div>
+                      </>
                     )}
                   </button>
                 )
@@ -388,27 +451,6 @@ export default function Home() {
               })}
             </div>
             {isDemon && <div style={{ marginTop:8, padding:'6px 10px', borderRadius:7, backgroundColor:'#FEF2F2', fontSize:11, fontWeight:700, color:'#DC2626', textAlign:'center' }}>⚠ 最大戦闘態勢</div>}
-          </div>
-
-          {/* Child info */}
-          <div style={card()}>
-            <p style={sec()}>Child Info</p>
-            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-              <div>
-                <label style={{ fontSize:10, color:'#9CA3AF', display:'block', marginBottom:4 }}>お名前（任意）</label>
-                <input type="text" value={info.name} onChange={e => setInfo(p => ({ ...p, name:e.target.value }))} placeholder="たろうくん" style={{ width:'100%', fontSize:12, padding:'6px 10px', border:'1px solid #E5E7EB', borderRadius:7, outline:'none', fontFamily:'inherit', color:'#374151' }} />
-              </div>
-              <div>
-                <label style={{ fontSize:10, color:'#9CA3AF', display:'block', marginBottom:4 }}>生年月日</label>
-                <input type="date" value={info.birthdate} onChange={e => setInfo(p => ({ ...p, birthdate:e.target.value }))} style={{ width:'100%', fontSize:12, padding:'6px 10px', border:'1px solid #E5E7EB', borderRadius:7, outline:'none', fontFamily:'inherit', color:'#374151' }} />
-              </div>
-              {monthAge !== null && (
-                <div style={{ padding:'8px 10px', borderRadius:7, backgroundColor:cur.accentBg, textAlign:'center' }}>
-                  <p style={{ fontSize:18, fontWeight:700, color:cur.accent, margin:0 }}>{monthAge}ヶ月</p>
-                  <p style={{ fontSize:10, color:'#6B7280', margin:'2px 0 0' }}>{monthAge < 36 ? `${Math.floor(monthAge/12)}歳${monthAge%12}ヶ月` : `${Math.floor(monthAge/12)}歳`}</p>
-                </div>
-              )}
-            </div>
           </div>
 
           {/* Stats */}
@@ -436,15 +478,16 @@ export default function Home() {
                 <p style={{ ...sec(cur.accent), margin:0 }}>🌅 登園クエスト</p>
                 <span style={{ fontSize:12, color:'#9CA3AF' }}>{checked}/{curTasks.length}</span>
               </div>
-              <div style={{ height:3, backgroundColor:'#F3F4F6', borderRadius:99, marginBottom:14, overflow:'hidden' }}>
-                <div style={{ height:'100%', width:`${progress}%`, backgroundColor:cur.accent, borderRadius:99, transition:'width 0.4s ease' }} />
+              {/* Progress bar — animated via transition */}
+              <div style={{ height:5, backgroundColor:'#F3F4F6', borderRadius:99, marginBottom:14, overflow:'hidden' }}>
+                <div style={{ height:'100%', width:`${progress}%`, backgroundColor:cur.accent, borderRadius:99, transition:'width 0.35s cubic-bezier(.4,0,.2,1)' }} />
               </div>
               {curTasks.map(task => (
                 <div key={task.id} className="task-row" style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:'1px solid #F9FAFB' }}>
-                  <button onClick={() => toggle(task.id)} style={{ width:18, height:18, borderRadius:4, border:`1.5px solid ${task.checked ? cur.accent : '#D1D5DB'}`, backgroundColor: task.checked ? cur.accent : 'transparent', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', padding:0, transition:'all 0.15s' }}>
-                    {task.checked && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                  <button onClick={() => toggle(task.id)} style={{ width:20, height:20, borderRadius:5, border:`2px solid ${task.checked ? cur.accent : '#D1D5DB'}`, backgroundColor: task.checked ? cur.accent : 'transparent', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', padding:0, transition:'all 0.15s' }}>
+                    {task.checked && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                   </button>
-                  <span style={{ flex:1, fontSize:13, color: task.checked ? '#D1D5DB' : '#1F2937', textDecoration: task.checked ? 'line-through' : 'none' }}>{task.text}</span>
+                  <span style={{ flex:1, fontSize:13, color: task.checked ? '#D1D5DB' : '#1F2937', textDecoration: task.checked ? 'line-through' : 'none', transition:'color 0.2s' }}>{task.text}</span>
                   <button onClick={() => delTask(task.id)} className="delete-btn" style={{ opacity:0, fontSize:15, color:'#D1D5DB', cursor:'pointer', border:'none', backgroundColor:'transparent', padding:0, width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center', transition:'opacity 0.15s' }}>×</button>
                 </div>
               ))}
@@ -453,14 +496,14 @@ export default function Home() {
                 <button onClick={addTask} style={{ fontSize:11, fontWeight:600, color:cur.accent, border:'none', backgroundColor:'transparent', cursor:'pointer', fontFamily:'inherit' }}>追加</button>
               </div>
               {allDone && !todayStatus.morningDone && (
-                <button onClick={completeQuest} style={{ width:'100%', marginTop:14, padding:'14px', backgroundColor:cur.accent, color:'white', fontSize:12, fontWeight:700, letterSpacing:'0.15em', border:'none', borderRadius:8, cursor:'pointer', fontFamily:'inherit' }}>
-                  ✓ クエスト完了 — 爆速で出社せよ
+                <button onClick={completeQuest} style={{ width:'100%', marginTop:14, padding:'14px', backgroundColor:cur.accent, color:'white', fontSize:13, fontWeight:700, letterSpacing:'0.15em', border:'none', borderRadius:8, cursor:'pointer', fontFamily:'inherit' }}>
+                  ✓ クエスト完了 — 爆速で出社せよ 🎉
                 </button>
               )}
               {todayStatus.morningDone && (
-                <div style={{ marginTop:14, padding:'16px', backgroundColor:'#F0FDF4', borderRadius:8, textAlign:'center', border:'1px solid #BBF7D0' }}>
-                  <p style={{ fontSize:22, margin:'0 0 4px' }}>🎉</p>
-                  <p style={{ fontSize:15, fontWeight:700, color:'#15803D', margin:'0 0 4px' }}>爆速で出社せよ</p>
+                <div style={{ marginTop:14, padding:'16px', backgroundColor:'#ECFDF5', borderRadius:8, textAlign:'center', border:'2px solid #6EE7B7' }}>
+                  <p style={{ fontSize:28, margin:'0 0 6px' }}>✅</p>
+                  <p style={{ fontSize:15, fontWeight:700, color:'#065F46', margin:'0 0 4px' }}>朝の部 クリア！</p>
                   <p style={{ fontSize:11, color:'#6B7280', margin:'0 0 10px' }}>よく戦った。行ってらっしゃい。</p>
                   <button onClick={resetQ} style={{ fontSize:10, color:'#9CA3AF', textDecoration:'underline', border:'none', backgroundColor:'transparent', cursor:'pointer', fontFamily:'inherit' }}>リセット</button>
                 </div>
@@ -472,12 +515,15 @@ export default function Home() {
           {tz === 'EVENING' && (
             todayStatus.eveningDone ? (
               /* ねぎらいカード */
-              <div style={card({ background:'linear-gradient(135deg, #F5F3FF 0%, #EFF6FF 100%)', border:'1px solid #DDD6FE' })}>
-                <p style={{ fontSize:10, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase', color:cur.accent, margin:'0 0 16px' }}>Tonight&apos;s Message</p>
-                <div style={{ textAlign:'center', padding:'8px 0 16px' }}>
-                  <span style={{ fontSize:40 }}>🌙</span>
+              <div style={card({ background:'linear-gradient(135deg, #F5F3FF 0%, #EFF6FF 100%)', border:'2px solid #6EE7B7' })}>
+                <div style={{ display:'flex', justifyContent:'center', marginBottom:8 }}>
+                  <span style={{ fontSize:36 }}>✅</span>
                 </div>
-                <p style={{ fontSize:16, fontWeight:700, color:'#1F2937', lineHeight:1.7, textAlign:'center', margin:'0 0 20px' }}>
+                <p style={{ fontSize:10, fontWeight:700, letterSpacing:'0.14em', textTransform:'uppercase' as const, color:cur.accent, margin:'0 0 12px', textAlign:'center' }}>夜の部 クリア！</p>
+                <div style={{ textAlign:'center', padding:'4px 0 12px' }}>
+                  <span style={{ fontSize:36 }}>🌙</span>
+                </div>
+                <p style={{ fontSize:15, fontWeight:700, color:'#1F2937', lineHeight:1.7, textAlign:'center', margin:'0 0 20px' }}>
                   {todayStatus.eveningMessage}
                 </p>
                 <div style={{ borderTop:'1px solid #EDE9FE', paddingTop:14, display:'flex', justifyContent:'center' }}>
@@ -515,7 +561,7 @@ export default function Home() {
                     <textarea value={night.memo} onChange={e => setNight(p => ({ ...p, memo:e.target.value }))} placeholder="今日の出来事、トイトレの様子、気になったこと..." rows={3} style={{ width:'100%', fontSize:13, padding:'10px 12px', border:'1px solid #E5E7EB', borderRadius:8, outline:'none', resize:'vertical', fontFamily:'inherit', color:'#374151', lineHeight:1.7 }} />
                   </div>
                   <button onClick={saveNight} style={{ padding:'14px', backgroundColor:cur.accent, color:'white', fontSize:13, fontWeight:700, letterSpacing:'0.1em', border:'none', borderRadius:8, cursor:'pointer', fontFamily:'inherit' }}>
-                    今日の記録を保存
+                    今日の記録を保存 🎉
                   </button>
                 </div>
               </div>
@@ -529,18 +575,19 @@ export default function Home() {
                 <p style={{ ...sec(), margin:0 }}>夜のクエスト</p>
                 <span style={{ fontSize:11, color:'#9CA3AF' }}>{checked}/{curTasks.length}</span>
               </div>
-              <div style={{ height:2, backgroundColor:'#F3F4F6', borderRadius:99, marginBottom:10, overflow:'hidden' }}>
-                <div style={{ height:'100%', width:`${progress}%`, backgroundColor:cur.accent, borderRadius:99 }} />
+              {/* Progress bar — animated */}
+              <div style={{ height:5, backgroundColor:'#F3F4F6', borderRadius:99, marginBottom:10, overflow:'hidden' }}>
+                <div style={{ height:'100%', width:`${progress}%`, backgroundColor:cur.accent, borderRadius:99, transition:'width 0.35s cubic-bezier(.4,0,.2,1)' }} />
               </div>
               {curTasks.map(task => (
                 <div key={task.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:'1px solid #F9FAFB' }}>
-                  <button onClick={() => toggle(task.id)} style={{ width:16, height:16, borderRadius:4, border:`1.5px solid ${task.checked ? cur.accent : '#D1D5DB'}`, backgroundColor: task.checked ? cur.accent : 'transparent', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', padding:0 }}>
-                    {task.checked && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                  <button onClick={() => toggle(task.id)} style={{ width:18, height:18, borderRadius:5, border:`2px solid ${task.checked ? cur.accent : '#D1D5DB'}`, backgroundColor: task.checked ? cur.accent : 'transparent', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', padding:0, transition:'all 0.15s' }}>
+                    {task.checked && <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                   </button>
-                  <span style={{ flex:1, fontSize:12, color: task.checked ? '#D1D5DB' : '#374151', textDecoration: task.checked ? 'line-through' : 'none' }}>{task.text}</span>
+                  <span style={{ flex:1, fontSize:12, color: task.checked ? '#D1D5DB' : '#374151', textDecoration: task.checked ? 'line-through' : 'none', transition:'color 0.2s' }}>{task.text}</span>
                 </div>
               ))}
-              {allDone && <div style={{ marginTop:12, padding:'12px', backgroundColor:cur.accentBg, borderRadius:8, textAlign:'center' }}><p style={{ fontSize:13, fontWeight:700, color:'#111', margin:0 }}>大人の自由時間の開幕だ 🌙</p></div>}
+              {allDone && !todayStatus.eveningDone && <div style={{ marginTop:12, padding:'12px', backgroundColor:cur.accentBg, borderRadius:8, textAlign:'center' }}><p style={{ fontSize:13, fontWeight:700, color:'#111', margin:0 }}>全完了！振り返りを記録しよう 🌙</p></div>}
             </div>
           )}
 
@@ -583,31 +630,110 @@ export default function Home() {
         {/* ══ RIGHT ═════════════════════════════════════════ */}
         <div className="dash-right" style={{ display:'flex', flexDirection:'column', gap:12 }}>
 
-          {/* Milestone */}
-          {milestone ? (
-            <div style={card({ borderLeft:`3px solid ${cur.accent}` })}>
-              <p style={sec(cur.accent)}>今月の攻略ガイド</p>
-              <p style={{ fontSize:13, fontWeight:700, color:'#111', marginBottom:10 }}>{info.name?`${info.name}の`:''}{milestone.title}</p>
-              {milestone.guide.map((g,i) => (
-                <p key={i} style={{ fontSize:11, color:'#374151', margin:'0 0 5px', display:'flex', gap:6, alignItems:'flex-start', lineHeight:1.55 }}>
-                  <span style={{ color:cur.accent, flexShrink:0 }}>◆</span>{g}
+          {/* ── 今月の攻略ガイド (child info + milestone combined) ── */}
+          <div style={card({ borderLeft:`3px solid ${cur.accent}` })}>
+            {/* Card header */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+              <p style={{ ...sec(cur.accent), margin:0 }}>今月の攻略ガイド</p>
+              {!showInfoForm && (
+                <button
+                  onClick={startInfoEdit}
+                  style={{ fontSize:10, color:'#9CA3AF', border:'1px solid #E5E7EB', borderRadius:5, backgroundColor:'white', cursor:'pointer', padding:'2px 8px', fontFamily:'inherit', fontWeight:600, transition:'all 0.15s' }}
+                  onMouseOver={e => { e.currentTarget.style.color = cur.accent; e.currentTarget.style.borderColor = cur.accent }}
+                  onMouseOut={e  => { e.currentTarget.style.color = '#9CA3AF';  e.currentTarget.style.borderColor = '#E5E7EB' }}
+                >
+                  編集
+                </button>
+              )}
+            </div>
+
+            {/* ── Form (unset or editing) ── */}
+            {showInfoForm && (
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                <p style={{ fontSize:11, color:'#6B7280', margin:'0 0 4px', lineHeight:1.6 }}>
+                  お子さんの情報を入力すると<br />月齢に合った攻略ガイドが表示されます
                 </p>
-              ))}
-              <div style={{ borderTop:'1px solid #F3F4F6', paddingTop:10, marginTop:10 }}>
-                <p style={{ fontSize:9, color:'#9CA3AF', margin:'0 0 6px', fontWeight:700, letterSpacing:'0.12em' }}>CHECK</p>
-                {milestone.check.map((w,i) => (
-                  <p key={i} style={{ fontSize:11, color:'#6B7280', margin:'0 0 4px', display:'flex', gap:6, alignItems:'flex-start', lineHeight:1.5 }}>
-                    <span style={{ color:'#9CA3AF', flexShrink:0 }}>→</span>{w}
+                <div>
+                  <label style={{ fontSize:10, color:'#9CA3AF', display:'block', marginBottom:4 }}>お名前（任意）</label>
+                  <input
+                    type="text"
+                    value={infoEditing ? editName : info.name}
+                    onChange={e => infoEditing ? setEditName(e.target.value) : setInfo(p => ({ ...p, name: e.target.value }))}
+                    placeholder="たろうくん"
+                    style={{ width:'100%', fontSize:12, padding:'7px 10px', border:'1px solid #E5E7EB', borderRadius:7, outline:'none', fontFamily:'inherit', color:'#374151' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize:10, color:'#9CA3AF', display:'block', marginBottom:4 }}>生年月日 <span style={{ color:'#EF4444' }}>*</span></label>
+                  <input
+                    type="date"
+                    value={infoEditing ? editBirth : info.birthdate}
+                    onChange={e => infoEditing ? setEditBirth(e.target.value) : setInfo(p => ({ ...p, birthdate: e.target.value }))}
+                    style={{ width:'100%', fontSize:12, padding:'7px 10px', border:'1px solid #E5E7EB', borderRadius:7, outline:'none', fontFamily:'inherit', color:'#374151' }}
+                  />
+                </div>
+                {infoEditing ? (
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button
+                      onClick={saveInfoEdit}
+                      style={{ flex:1, padding:'8px', backgroundColor:cur.accent, color:'white', fontSize:11, fontWeight:700, border:'none', borderRadius:7, cursor:'pointer', fontFamily:'inherit' }}
+                    >保存</button>
+                    <button
+                      onClick={() => setInfoEditing(false)}
+                      style={{ padding:'8px 12px', backgroundColor:'#F9FAFB', color:'#6B7280', fontSize:11, border:'1px solid #E5E7EB', borderRadius:7, cursor:'pointer', fontFamily:'inherit' }}
+                    >キャンセル</button>
+                  </div>
+                ) : (
+                  info.birthdate && (
+                    <div style={{ padding:'8px 10px', borderRadius:7, backgroundColor:cur.accentBg, textAlign:'center' }}>
+                      <p style={{ fontSize:20, fontWeight:700, color:cur.accent, margin:0 }}>{monthAge}ヶ月</p>
+                      <p style={{ fontSize:10, color:'#6B7280', margin:'2px 0 0' }}>
+                        {monthAge !== null && monthAge < 36 ? `${Math.floor(monthAge/12)}歳${monthAge%12}ヶ月` : monthAge !== null ? `${Math.floor(monthAge/12)}歳` : ''}
+                      </p>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            {/* ── Milestone guide (set and not editing) ── */}
+            {!showInfoForm && milestone && (
+              <>
+                {/* Age badge */}
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+                  <div style={{ padding:'4px 10px', borderRadius:20, backgroundColor:cur.accentBg }}>
+                    <span style={{ fontSize:13, fontWeight:700, color:cur.accent }}>
+                      {monthAge !== null && monthAge < 36
+                        ? `${Math.floor(monthAge/12)}歳${monthAge%12}ヶ月`
+                        : monthAge !== null ? `${Math.floor(monthAge/12)}歳` : ''}
+                      （{monthAge}ヶ月）
+                    </span>
+                  </div>
+                </div>
+                <p style={{ fontSize:13, fontWeight:700, color:'#111', marginBottom:10 }}>
+                  {info.name ? `${info.name}の` : ''}{milestone.title}
+                </p>
+                {milestone.guide.map((g,i) => (
+                  <p key={i} style={{ fontSize:11, color:'#374151', margin:'0 0 6px', display:'flex', gap:6, alignItems:'flex-start', lineHeight:1.55 }}>
+                    <span style={{ color:cur.accent, flexShrink:0 }}>◆</span>{g}
                   </p>
                 ))}
-              </div>
-            </div>
-          ) : (
-            <div style={card({ borderLeft:`3px solid ${cur.accent}` })}>
-              <p style={sec(cur.accent)}>今月の攻略ガイド</p>
-              <p style={{ fontSize:12, color:'#9CA3AF', textAlign:'center', padding:'16px 0', lineHeight:1.7 }}>生年月日を入力すると<br />月齢に合わせたガイドが<br />表示されます</p>
-            </div>
-          )}
+                <div style={{ borderTop:'1px solid #F3F4F6', paddingTop:10, marginTop:10 }}>
+                  <p style={{ fontSize:9, color:'#9CA3AF', margin:'0 0 6px', fontWeight:700, letterSpacing:'0.12em' }}>CHECK</p>
+                  {milestone.check.map((w,i) => (
+                    <p key={i} style={{ fontSize:11, color:'#6B7280', margin:'0 0 5px', display:'flex', gap:6, alignItems:'flex-start', lineHeight:1.5 }}>
+                      <span style={{ color:'#9CA3AF', flexShrink:0 }}>→</span>{w}
+                    </p>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* ── No milestone yet (set but no milestone data) ── */}
+            {!showInfoForm && !milestone && (
+              <p style={{ fontSize:12, color:'#9CA3AF', textAlign:'center', padding:'12px 0', lineHeight:1.7 }}>生年月日を入力すると<br />月齢に合わせたガイドが<br />表示されます</p>
+            )}
+          </div>
 
           {/* Calendar */}
           <div style={card()}>
@@ -664,6 +790,33 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* ══ Toast notifications ════════════════════════════ */}
+      {toasts.map(t => (
+        <div
+          key={t.id}
+          className="toast-pop"
+          style={{
+            position:   'fixed',
+            left:       `${t.x}%`,
+            top:        `${t.y}%`,
+            transform:  'translate(-50%, -50%)',
+            backgroundColor: '#111827',
+            color:      'white',
+            padding:    '9px 20px',
+            borderRadius: 99,
+            fontSize:   15,
+            fontWeight: 800,
+            zIndex:     9998,
+            pointerEvents: 'none',
+            letterSpacing: '0.04em',
+            boxShadow:  '0 4px 16px rgba(0,0,0,0.22)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {t.text}
+        </div>
+      ))}
     </div>
   )
 }
