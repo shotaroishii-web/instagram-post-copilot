@@ -2,37 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap');
-
-:root {
-  --bg: #FAFAF8;
-  --text: #1A1A1A;
-  --muted: #6B6B6B;
-  --border: #E0E0DC;
-  --accent: #C17A40;
-}
-
 * {
   box-sizing: border-box;
 }
 
 html {
-  background-color: var(--bg);
-  color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background-color: var(--bg);
-  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  background-color: white;
+  color: #111;
 }
 
-::selection {
-  background-color: #F0E0CC;
-  color: #1A1A1A;
+input::placeholder {
+  color: #D1D5DB;
 }
 
-textarea, input {
-  font-family: inherit;
+/* ── 魔王モード：画面微震え ── */
+@keyframes micro-shake {
+  0%   { transform: translate(0, 0); }
+  20%  { transform: translate(-1.5px, 0.5px) rotate(-0.1deg); }
+  40%  { transform: translate(1.5px, -0.5px) rotate(0.1deg); }
+  60%  { transform: translate(-1px, 1px) rotate(-0.1deg); }
+  80%  { transform: translate(1px, -1px) rotate(0.1deg); }
+  100% { transform: translate(0, 0); }
+}
+
+.shake-screen {
+  animation: micro-shake 0.35s ease-in-out infinite;
+}
+
+/* ── タスク行：削除ボタンをhoverで表示 ── */
+.task-row:hover .delete-btn {
+  opacity: 1 !important;
+}
+
+.task-row:hover .delete-btn:hover {
+  color: #6B7280 !important;
 }
